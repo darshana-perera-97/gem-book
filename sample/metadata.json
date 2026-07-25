@@ -1,0 +1,6 @@
+{
+  "name": "GemBook Sri Lanka",
+  "description": "The Digital Marketplace, Community & Social Network for the Global Gem Industry in Sri Lanka.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

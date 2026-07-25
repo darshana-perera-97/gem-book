@@ -1,0 +1,1 @@
+import{N as t}from"./index-vXucOJQI.js";const p=async(a,o)=>{if(a.uid===o.uid)throw new Error("You cannot message yourself");const{id:i}=await t({uid:a.uid,displayName:a.displayName,photoURL:a.photoURL||""},{uid:o.uid,displayName:o.displayName,photoURL:o.photoURL||""});return i};export{p as s};

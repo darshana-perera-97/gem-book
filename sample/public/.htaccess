@@ -1,0 +1,13 @@
+# React SPA client-side routing.
+# Serves real files/folders directly; sends everything else to index.html.
+# Leaves /api, /uploads and /seed untouched so they hit PHP and static assets.
+Options -MultiViews
+RewriteEngine On
+RewriteBase /
+
+RewriteRule ^(api|uploads|seed)/ - [L]
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+RewriteRule ^ index.html [L]
