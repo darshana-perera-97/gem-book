@@ -1,17 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { uploadImageFile, createPost } from '../../lib/api';
+import { uploadMediaFile, createPost } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { Image, Send, X, Loader2 } from 'lucide-react';
+import { Image, Play, Send, X, Loader2 } from 'lucide-react';
 import { SocialPost } from '../../types';
 
-interface SelectedImage {
+interface SelectedMedia {
   file: File;
   previewUrl: string;
+  kind: 'image' | 'video';
 }
 
 const MAX_IMAGES = 4;
 const MAX_LENGTH = 2000;
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 
 interface CreatePostProps {
   /** Lets the feed show the new post immediately, with no refetch. */
@@ -23,40 +25,66 @@ export const CreatePost = ({ onPosted }: CreatePostProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [status, setStatus] = useState<'idle' | 'uploading' | 'posting'>('idle');
   const [error, setError] = useState('');
-  const [images, setImages] = useState<SelectedImage[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mediaItems, setMediaItems] = useState<SelectedMedia[]>([]);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const { userProfile } = useAuth();
+
+  const isVendor = userProfile?.role === 'VENDOR';
+  const hasVideo = mediaItems.some((m) => m.kind === 'video');
 
   // Release object URLs when the composer unmounts.
   useEffect(() => {
-    return () => { images.forEach((img) => URL.revokeObjectURL(img.previewUrl)); };
+    return () => { mediaItems.forEach((m) => URL.revokeObjectURL(m.previewUrl)); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleFilesSelected = (fileList: FileList | null) => {
+  const handleImagesSelected = (fileList: FileList | null) => {
     if (!fileList) return;
     setError('');
-    const room = MAX_IMAGES - images.length;
+    if (hasVideo) {
+      setError('Remove the reel video before adding photos.');
+      return;
+    }
+    const room = MAX_IMAGES - mediaItems.length;
     const accepted = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
-
     if (accepted.length > room) setError(`You can attach up to ${MAX_IMAGES} photos.`);
-
-    setImages((prev) => [
+    setMediaItems((prev) => [
       ...prev,
-      ...accepted.slice(0, room).map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
+      ...accepted.slice(0, room).map((file) => ({
+        file,
+        previewUrl: URL.createObjectURL(file),
+        kind: 'image' as const,
+      })),
     ]);
   };
 
-  const removeImage = (index: number) => {
-    setImages((prev) => {
+  const handleVideoSelected = (fileList: FileList | null) => {
+    if (!fileList?.[0]) return;
+    setError('');
+    const file = fileList[0];
+    if (!file.type.startsWith('video/')) {
+      setError('Please choose a video file (mp4, webm, or mov).');
+      return;
+    }
+    if (file.size > MAX_VIDEO_BYTES) {
+      setError('Reels must be under 50 MB.');
+      return;
+    }
+    mediaItems.forEach((m) => URL.revokeObjectURL(m.previewUrl));
+    setMediaItems([{ file, previewUrl: URL.createObjectURL(file), kind: 'video' }]);
+  };
+
+  const removeMedia = (index: number) => {
+    setMediaItems((prev) => {
       URL.revokeObjectURL(prev[index].previewUrl);
       return prev.filter((_, i) => i !== index);
     });
   };
 
   const reset = () => {
-    images.forEach((img) => URL.revokeObjectURL(img.previewUrl));
-    setImages([]);
+    mediaItems.forEach((m) => URL.revokeObjectURL(m.previewUrl));
+    setMediaItems([]);
     setContent('');
     setError('');
     setIsExpanded(false);
@@ -65,7 +93,8 @@ export const CreatePost = ({ onPosted }: CreatePostProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = content.trim();
-    if (!trimmed) return;
+    // Reels (video) can ship with just a caption; regular posts need text.
+    if (!trimmed && !hasVideo) return;
     if (trimmed.length > MAX_LENGTH) {
       setError(`Posts are limited to ${MAX_LENGTH} characters.`);
       return;
@@ -80,10 +109,10 @@ export const CreatePost = ({ onPosted }: CreatePostProps) => {
       }
 
       let media: string[] = [];
-      if (images.length > 0) {
+      if (mediaItems.length > 0) {
         setStatus('uploading');
         media = await Promise.all(
-          images.map((img) => uploadImageFile(`posts/${profile.uid}`, img.file))
+          mediaItems.map((item) => uploadMediaFile(`posts/${profile.uid}`, item.file))
         );
       }
 
@@ -93,14 +122,14 @@ export const CreatePost = ({ onPosted }: CreatePostProps) => {
         authorName: profile.displayName,
         authorAvatar: profile.photoURL || '',
         authorType: profile.role === 'VENDOR' ? 'VENDOR' : 'USER',
-        content: trimmed,
+        content: trimmed || 'New reel',
         media,
         likesCount: 0,
         likes: [],
         commentsCount: 0,
         sharesCount: 0,
         averageRating: 0,
-        type: 'DISCUSSION',
+        type: hasVideo ? 'STORY' : 'DISCUSSION',
       });
 
       onPosted?.(saved as SocialPost);
@@ -115,6 +144,11 @@ export const CreatePost = ({ onPosted }: CreatePostProps) => {
 
   const busy = status !== 'idle';
   const avatar = userProfile?.photoURL;
+  const canSubmit = busy
+    ? false
+    : hasVideo
+      ? true
+      : !!content.trim();
 
   // No identity yet — invite the visitor to set up a quick profile.
   if (!userProfile) {
@@ -157,6 +191,9 @@ export const CreatePost = ({ onPosted }: CreatePostProps) => {
               </div>
               <div className="leading-tight">
                 <span className="text-xs font-bold text-slate-700 block">{userProfile?.displayName}</span>
+                {hasVideo && (
+                  <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Reel</span>
+                )}
               </div>
             </div>
             <button
@@ -173,18 +210,27 @@ export const CreatePost = ({ onPosted }: CreatePostProps) => {
             value={content}
             onChange={(e) => setContent(e.target.value)}
             maxLength={MAX_LENGTH}
-            placeholder="What's happening in the gem world?"
+            placeholder={hasVideo ? 'Add a caption for your reel…' : "What's happening in the gem world?"}
             className="w-full min-h-[120px] p-2 text-slate-800 text-sm md:text-base placeholder:text-slate-300 outline-none resize-none"
           />
 
-          {images.length > 0 && (
-            <div className="grid grid-cols-4 gap-2">
-              {images.map((img, i) => (
-                <div key={img.previewUrl} className="relative aspect-square rounded-xl overflow-hidden border border-slate-100">
-                  <img src={img.previewUrl} alt="" className="w-full h-full object-cover" />
+          {mediaItems.length > 0 && (
+            <div className={hasVideo ? 'grid grid-cols-1 max-w-[200px]' : 'grid grid-cols-4 gap-2'}>
+              {mediaItems.map((item, i) => (
+                <div
+                  key={item.previewUrl}
+                  className={`relative rounded-xl overflow-hidden border border-slate-100 ${
+                    item.kind === 'video' ? 'aspect-[9/16] bg-slate-900' : 'aspect-square'
+                  }`}
+                >
+                  {item.kind === 'video' ? (
+                    <video src={item.previewUrl} className="w-full h-full object-cover" muted playsInline />
+                  ) : (
+                    <img src={item.previewUrl} alt="" className="w-full h-full object-cover" />
+                  )}
                   <button
                     type="button"
-                    onClick={() => removeImage(i)}
+                    onClick={() => removeMedia(i)}
                     className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center"
                   >
                     <X size={12} />
@@ -202,21 +248,42 @@ export const CreatePost = ({ onPosted }: CreatePostProps) => {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={images.length >= MAX_IMAGES || busy}
+                onClick={() => imageInputRef.current?.click()}
+                disabled={hasVideo || mediaItems.length >= MAX_IMAGES || busy}
                 className="p-2 hover:bg-primary/5 rounded-full text-primary transition-colors flex items-center gap-2 text-xs font-bold disabled:opacity-40"
               >
                 <Image size={20} />
                 <span className="hidden md:inline">Photo</span>
               </button>
+              {isVendor && (
+                <button
+                  type="button"
+                  onClick={() => videoInputRef.current?.click()}
+                  disabled={busy}
+                  className="p-2 hover:bg-primary/5 rounded-full text-primary transition-colors flex items-center gap-2 text-xs font-bold disabled:opacity-40"
+                >
+                  <Play size={20} />
+                  <span className="hidden md:inline">Reel</span>
+                </button>
+              )}
               <input
-                ref={fileInputRef}
+                ref={imageInputRef}
                 type="file"
                 accept="image/*"
                 multiple
                 className="hidden"
                 onChange={(e) => {
-                  handleFilesSelected(e.target.files);
+                  handleImagesSelected(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime,video/*"
+                className="hidden"
+                onChange={(e) => {
+                  handleVideoSelected(e.target.files);
                   e.target.value = '';
                 }}
               />
@@ -228,11 +295,17 @@ export const CreatePost = ({ onPosted }: CreatePostProps) => {
             </div>
             <button
               type="submit"
-              disabled={busy || !content.trim()}
+              disabled={!canSubmit}
               className="bg-primary text-white px-6 py-2 rounded-full font-black text-xs md:text-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2"
             >
               {busy && <Loader2 size={14} className="animate-spin" />}
-              {status === 'uploading' ? 'Uploading...' : status === 'posting' ? 'Posting...' : 'Post'}
+              {status === 'uploading'
+                ? 'Uploading...'
+                : status === 'posting'
+                  ? 'Posting...'
+                  : hasVideo
+                    ? 'Publish Reel'
+                    : 'Post'}
               {!busy && <Send size={16} />}
             </button>
           </div>

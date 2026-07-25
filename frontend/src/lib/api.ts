@@ -24,7 +24,7 @@ const qs = (params: Record<string, any>) =>
     .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
     .join('&');
 
-// ---- images ----------------------------------------------------------------
+// ---- media -----------------------------------------------------------------
 /**
  * Compresses then uploads an image, returning its public URL.
  * `path` is kept for call-site compatibility but ignored (the server names files).
@@ -36,6 +36,20 @@ export async function uploadImageFile(_path: string, file: File): Promise<string
   form.append('file', optimised, optimised.name);
   const { url } = await req<{ url: string }>('/upload', { method: 'POST', body: form });
   return url;
+}
+
+/**
+ * Uploads an image or video as-is (videos skip compression).
+ * `path` is kept for call-site compatibility but ignored.
+ */
+export async function uploadMediaFile(_path: string, file: File): Promise<string> {
+  if (file.type.startsWith('video/')) {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    const { url } = await req<{ url: string }>('/upload', { method: 'POST', body: form });
+    return url;
+  }
+  return uploadImageFile(_path, file);
 }
 
 // ---- users -----------------------------------------------------------------

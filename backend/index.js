@@ -186,7 +186,8 @@ const upload = multer({
       cb(null, `${Date.now()}-${genId()}${ext}`);
     },
   }),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  // Images stay small; short vendor reels may be larger (mp4/webm).
+  limits: { fileSize: 50 * 1024 * 1024 },
 });
 
 const api = express.Router();

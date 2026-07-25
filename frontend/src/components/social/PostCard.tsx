@@ -7,6 +7,7 @@ import { cn } from '../../lib/utils';
 import { likePost } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { CommentSection } from './CommentSection';
+import { isVideoUrl } from '../../lib/media';
 
 interface PostCardProps {
   post: SocialPost;
@@ -122,19 +123,33 @@ const PostCardComponent = ({ post }: PostCardProps) => {
               post.media.length > 1 ? 'grid grid-cols-2' : ''
             )}
           >
-            {post.media.slice(0, 4).map((src, i) => (
-              <img
-                key={src}
-                src={src}
-                alt=""
-                loading="lazy"
-                decoding="async"
-                className={cn(
-                  'w-full object-cover hover:scale-[1.02] transition-transform duration-700',
-                  post.media!.length > 1 ? 'h-40 md:h-48' : 'max-h-[500px]'
-                )}
-              />
-            ))}
+            {post.media.slice(0, 4).map((src) =>
+              isVideoUrl(src) ? (
+                <video
+                  key={src}
+                  src={src}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className={cn(
+                    'w-full object-cover bg-black',
+                    post.media!.length > 1 ? 'h-40 md:h-48' : 'max-h-[500px]'
+                  )}
+                />
+              ) : (
+                <img
+                  key={src}
+                  src={src}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className={cn(
+                    'w-full object-cover hover:scale-[1.02] transition-transform duration-700',
+                    post.media!.length > 1 ? 'h-40 md:h-48' : 'max-h-[500px]'
+                  )}
+                />
+              )
+            )}
           </div>
         )}
 

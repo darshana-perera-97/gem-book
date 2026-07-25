@@ -12,6 +12,7 @@ import { ListingCard } from '../components/marketplace/ListingCard';
 import { PostCard } from '../components/social/PostCard';
 import { ReviewsSection } from '../components/vendors/ReviewsSection';
 import { cn } from '../lib/utils';
+import { isVideoUrl } from '../lib/media';
 
 type Tab = 'INVENTORY' | 'POSTS' | 'SHORTS' | 'REVIEWS';
 
@@ -356,13 +357,37 @@ const ShortsTab = ({ loading, shorts }: { loading: boolean; shorts: SocialPost[]
   if (shorts.length === 0) return <EmptyState icon={Play} text="No shorts published yet." />;
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-      {shorts.map((p) => (
-        <div key={p.id} className="aspect-[9/16] rounded-2xl overflow-hidden bg-slate-900 relative group">
-          <img src={p.media![0]} alt="" className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500" loading="lazy" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-          <p className="absolute bottom-2 left-2 right-2 text-white text-[10px] font-medium line-clamp-2">{p.content}</p>
-        </div>
-      ))}
+      {shorts.map((p) => {
+        const src = p.media![0];
+        const video = isVideoUrl(src);
+        return (
+          <div key={p.id} className="aspect-[9/16] rounded-2xl overflow-hidden bg-slate-900 relative group">
+            {video ? (
+              <video
+                src={src}
+                muted
+                playsInline
+                preload="metadata"
+                className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
+              />
+            ) : (
+              <img
+                src={src}
+                alt=""
+                className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
+                loading="lazy"
+              />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+            {video && (
+              <span className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 flex items-center justify-center">
+                <Play size={12} className="text-white fill-white ml-0.5" />
+              </span>
+            )}
+            <p className="absolute bottom-2 left-2 right-2 text-white text-[10px] font-medium line-clamp-2">{p.content}</p>
+          </div>
+        );
+      })}
     </div>
   );
 };

@@ -8,6 +8,7 @@ import { listListings, listVendors, listPosts } from '../lib/api';
 import { primeVendors } from '../lib/vendorCache';
 import { SocialPost, GemListing, VendorProfile, FeedItem } from '../types';
 import { CreatePost } from '../components/social/CreatePost';
+import { VendorReelsStrip } from '../components/social/VendorReelsStrip';
 import { usePaginated } from '../hooks/usePaginatedCollection';
 
 /** Interleaves marketplace listings and vendor spotlights into the post stream. */
@@ -42,6 +43,7 @@ export const FeedPage = () => {
   const navigate = useNavigate();
   const [listings, setListings] = useState<GemListing[]>([]);
   const [vendors, setVendors] = useState<VendorProfile[]>([]);
+  const [freshReel, setFreshReel] = useState<SocialPost | null>(null);
 
   const {
     items: posts,
@@ -52,6 +54,13 @@ export const FeedPage = () => {
     loadMore,
     prepend,
   } = usePaginated<SocialPost>(listPosts, 10);
+
+  const handlePosted = (post: SocialPost) => {
+    prepend(post);
+    if (post.authorType === 'VENDOR' && post.media?.length) {
+      setFreshReel(post);
+    }
+  };
 
   // Listings and vendors are supporting content — fetch a small slice once.
   useEffect(() => {
@@ -132,7 +141,8 @@ export const FeedPage = () => {
 
       {/* Main Feed */}
       <div className="lg:col-span-6 space-y-6">
-        <CreatePost onPosted={prepend} />
+        <CreatePost onPosted={handlePosted} />
+        <VendorReelsStrip freshReel={freshReel} />
 
         {error && (
           <div className="text-center py-8 bg-red-50 rounded-2xl border border-red-100">
