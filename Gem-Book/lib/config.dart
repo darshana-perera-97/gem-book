@@ -1,7 +1,7 @@
 /// GemBook Flutter config — change the backend URL here only.
 ///
 /// Hosted API: https://gems.nexgenai.lk/api
-/// Local API:  http://localhost:3331/api
+/// Local API:  http://localhost:2233/api
 const String kBackendUrl = 'https://gems.nexgenai.lk/api';
 
 const String kOriginUrl = 'https://gems.nexgenai.lk';

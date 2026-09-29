@@ -12,7 +12,7 @@ flutter pub get
 flutter run
 ```
 
-Backend URL is set in `lib/config.dart`. Change `kBackendUrl` if you need a local API (`http://localhost:3331/api`).
+Backend URL is set in `lib/config.dart`. Change `kBackendUrl` if you need a local API (`http://localhost:2233/api`).
 
 ## Screens
 

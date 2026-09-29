@@ -1,6 +1,6 @@
 /**
  * GemBook API — Node/Express backend with JSON-file persistence.
- * Port 3331. Data lives in ./data as one JSON array file per collection.
+ * Port 2233. Data lives in ./data as one JSON array file per collection.
  */
 const path = require("path");
 const fs = require("fs");
@@ -8,7 +8,7 @@ const crypto = require("crypto");
 const express = require("express");
 const multer = require("multer");
 
-const PORT = process.env.PORT || 3331;
+const PORT = process.env.PORT || 2233;
 const DATA_DIR = path.join(__dirname, "data");
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 const FRONTEND_BUILD = path.join(__dirname, "..", "frontend", "dist");
