@@ -2,7 +2,7 @@
 
 Mobile app port of the React frontend in `../frontend`, matching the **mobile** layout, colors, and API.
 
-Production API: `https://www.gem-book.nexgenai.lk/api`
+Production API: `https://gems.nexgenai.lk/api`
 
 ## Run
 
@@ -12,7 +12,7 @@ flutter pub get
 flutter run
 ```
 
-Backend URL is set in `lib/config.dart`. Change `kBackendUrl` if you need a local API (`http://localhost:3399/api`).
+Backend URL is set in `lib/config.dart`. Change `kBackendUrl` if you need a local API (`http://localhost:3331/api`).
 
 ## Screens
 

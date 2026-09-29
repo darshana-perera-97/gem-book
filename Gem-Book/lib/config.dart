@@ -1,10 +1,10 @@
 /// GemBook Flutter config — change the backend URL here only.
 ///
-/// Hosted API: https://www.gem-book.nexgenai.lk/api
-/// Local API:  http://localhost:3399/api
-const String kBackendUrl = 'https://www.gem-book.nexgenai.lk/api';
+/// Hosted API: https://gems.nexgenai.lk/api
+/// Local API:  http://localhost:3331/api
+const String kBackendUrl = 'https://gems.nexgenai.lk/api';
 
-const String kOriginUrl = 'https://www.gem-book.nexgenai.lk';
+const String kOriginUrl = 'https://gems.nexgenai.lk';
 
 const String kDefaultAvatar =
     'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80';

@@ -6,6 +6,21 @@ import { BACKEND_URL } from '../config';
 import { UserProfile, VendorProfile, GemListing, SocialPost, Comment, Review, Conversation, Message } from '../types';
 
 const BASE = (import.meta.env.VITE_API_BASE || BACKEND_URL).replace(/\/$/, '');
+const ORIGIN = BASE.replace(/\/api$/, '');
+
+/** Upload paths are stored as /uploads/... and must load from the API host. */
+function resolveMedia<T>(value: T): T {
+  if (typeof value === 'string') {
+    return (value.startsWith('/uploads/') ? `${ORIGIN}${value}` : value) as T;
+  }
+  if (Array.isArray(value)) return value.map((item) => resolveMedia(item)) as T;
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) out[key] = resolveMedia(item);
+    return out as T;
+  }
+  return value;
+}
 
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -15,7 +30,7 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) throw new Error((data && data.error) || `Request failed (${res.status})`);
-  return data as T;
+  return resolveMedia(data) as T;
 }
 
 const qs = (params: Record<string, any>) =>
