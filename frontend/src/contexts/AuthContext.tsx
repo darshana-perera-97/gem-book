@@ -1,16 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { findUserByContact, getUser, saveUser, uploadImageFile } from '../lib/api';
-import { UserProfile } from '../types';
+import { parseLkMobile } from '../lib/phone';
+import { UserProfile, UserRole } from '../types';
+import { ensureVendorProfile } from '../lib/vendors';
 
 /**
- * Auth-less identity.
- *
- * Firebase Authentication (Google popup, phone OTP, reCAPTCHA) has been removed
- * entirely. A user is simply a Name + Contact Number + profile photo stored in
- * the Firestore `users` collection. The contact number is the identity key, and
- * the active uid is remembered in localStorage so the session survives reloads.
- * There is no password — re-entering the same contact number restores the
- * existing profile.
+ * Passwordless identity: name + Sri Lankan mobile + optional photo.
+ * The normalised contact number is the key; uid is remembered in localStorage.
  */
 
 const STORAGE_KEY = 'gembook_uid';
@@ -18,10 +14,22 @@ const STORAGE_KEY = 'gembook_uid';
 const DEFAULT_AVATAR =
   'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80';
 
-export interface SignUpInput {
+export type AuthErrorCode = 'exists' | 'not_found' | 'invalid';
+
+export class AuthError extends Error {
+  code: AuthErrorCode;
+  constructor(code: AuthErrorCode, message: string) {
+    super(message);
+    this.name = 'AuthError';
+    this.code = code;
+  }
+}
+
+export interface CreateAccountInput {
   displayName: string;
   contactNumber: string;
   photoFile?: File | null;
+  role?: UserRole;
 }
 
 interface AuthContextType {
@@ -29,8 +37,8 @@ interface AuthContextType {
   loading: boolean;
   /** True once a profile exists. Kept for call sites that gate write actions. */
   isVerified: boolean;
-  /** Create or restore an identity from Name + Contact Number (+ optional photo). */
-  signUp: (input: SignUpInput) => Promise<UserProfile>;
+  createAccount: (input: CreateAccountInput) => Promise<UserProfile>;
+  signIn: (contactNumber: string) => Promise<UserProfile>;
   updateProfile: (partial: Partial<UserProfile>, photoFile?: File | null) => Promise<UserProfile | null>;
   /** Returns the current profile (identity is created up-front at onboarding). */
   ensureProfile: () => Promise<UserProfile | null>;
@@ -39,15 +47,18 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function normaliseContact(raw: string): string {
-  return raw.replace(/[^\d+]/g, '');
+function requireMobile(raw: string): string {
+  const contact = parseLkMobile(raw);
+  if (!contact) {
+    throw new AuthError('invalid', 'Please enter a valid Sri Lankan mobile number.');
+  }
+  return contact;
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore the remembered identity on load.
   useEffect(() => {
     let active = true;
     (async () => {
@@ -77,31 +88,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.localStorage.setItem(STORAGE_KEY, profile.uid);
   }, []);
 
-  const signUp = useCallback(
-    async ({ displayName, contactNumber, photoFile }: SignUpInput): Promise<UserProfile> => {
+  const createAccount = useCallback(
+    async ({ displayName, contactNumber, photoFile, role = 'USER' }: CreateAccountInput): Promise<UserProfile> => {
       const name = displayName.trim();
-      const contact = normaliseContact(contactNumber);
-      if (!name) throw new Error('Please enter your name.');
-      if (contact.length < 7) throw new Error('Please enter a valid contact number.');
+      if (!name) throw new AuthError('invalid', 'Please enter your name.');
+      const contact = requireMobile(contactNumber);
 
-      // Returning user: a matching contact number restores the existing profile.
+      let existing: UserProfile | null = null;
       try {
-        const existing = await findUserByContact(contact);
-        if (existing && existing.uid) {
-          const patch: Partial<UserProfile> = { uid: existing.uid };
-          if (name && name !== existing.displayName) patch.displayName = name;
-          if (photoFile) {
-            patch.photoURL = await uploadImageFile(`avatars/${existing.uid}`, photoFile);
-          }
-          const saved = Object.keys(patch).length > 1 ? await saveUser(patch) : existing;
-          persist(saved);
-          return saved;
-        }
+        existing = await findUserByContact(contact);
       } catch (err) {
-        console.error('Contact lookup failed, creating a new profile:', err);
+        console.error('Contact lookup failed:', err);
+        throw new Error('Could not check this number. Check your connection and try again.');
+      }
+      if (existing && existing.uid) {
+        throw new AuthError('exists', 'This number is already registered. Sign in instead.');
       }
 
-      // New user.
       const uid = crypto.randomUUID();
       let photoURL = DEFAULT_AVATAR;
       if (photoFile) {
@@ -114,7 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         contactNumber: contact,
         phone: contact,
         photoURL,
-        role: 'USER',
+        role: role === 'VENDOR' ? 'VENDOR' : 'USER',
         followersCount: 0,
         followingCount: 0,
         following: [],
@@ -123,8 +126,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       const saved = await saveUser(profile);
+      if (saved.role === 'VENDOR') {
+        await ensureVendorProfile(saved);
+      }
       persist(saved);
       return saved;
+    },
+    [persist]
+  );
+
+  const signIn = useCallback(
+    async (contactNumber: string): Promise<UserProfile> => {
+      const contact = requireMobile(contactNumber);
+      let existing: UserProfile | null = null;
+      try {
+        existing = await findUserByContact(contact);
+      } catch (err) {
+        console.error('Contact lookup failed:', err);
+        throw new Error('Could not look up this number. Check your connection and try again.');
+      }
+      if (!existing || !existing.uid) {
+        throw new AuthError('not_found', 'No account found for this number. Create one?');
+      }
+      persist(existing);
+      return existing;
     },
     [persist]
   );
@@ -157,7 +182,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         userProfile,
         loading,
         isVerified: !!userProfile,
-        signUp,
+        createAccount,
+        signIn,
         updateProfile,
         ensureProfile,
         logout,

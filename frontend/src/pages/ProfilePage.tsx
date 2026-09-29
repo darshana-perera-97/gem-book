@@ -16,7 +16,7 @@ export const ProfilePage = () => {
 
   const handleBecomeVendor = async () => {
     if (!userProfile) {
-      navigate('/login?next=/profile');
+      navigate('/login?next=/profile&mode=signin');
       return;
     }
     setLoading(true);
@@ -39,10 +39,16 @@ export const ProfilePage = () => {
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">Sign in to view your profile</h1>
         <button
-          onClick={() => navigate('/login?next=/profile')}
+          onClick={() => navigate('/login?next=/profile&mode=signin')}
           className="bg-primary text-white px-8 py-3 rounded-2xl font-bold shadow-lg"
         >
           Sign In
+        </button>
+        <button
+          onClick={() => navigate('/login?next=/profile')}
+          className="mt-3 text-sm font-bold text-slate-500 hover:text-slate-900"
+        >
+          Create an account
         </button>
       </div>
     );

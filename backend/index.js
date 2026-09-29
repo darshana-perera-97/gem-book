@@ -130,6 +130,13 @@ function remove(col, id) {
   writeCollection(col, next);
 }
 
+function phoneKey(raw) {
+  let n = String(raw || "").replace(/\D/g, "");
+  if (n.startsWith("94")) n = n.slice(2);
+  if (n.startsWith("0")) n = n.slice(1);
+  return n;
+}
+
 function listRows(col, q) {
   let rows = readCollection(col);
   if (q.ids) {
@@ -139,7 +146,11 @@ function listRows(col, q) {
   for (const f of ["vendorId", "authorId", "targetId", "postId", "conversationId", "status"]) {
     if (q[f]) rows = rows.filter((r) => r[f] === q[f]);
   }
-  if (q.contact) rows = rows.filter((r) => r.contactNumber === q.contact);
+  if (q.contact) {
+    const want = phoneKey(q.contact);
+    rows = rows.filter((r) => phoneKey(r.contactNumber || r.phone) === want);
+    return rows;
+  }
   if (q.userId) {
     rows = rows.filter(
       (r) => Array.isArray(r.participants) && r.participants.includes(q.userId)
